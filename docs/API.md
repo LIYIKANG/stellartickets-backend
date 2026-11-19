@@ -929,7 +929,10 @@ is 1-based FIFO among `WAITING` entries. A waitlist entry row:
 ### `POST /v1/ticket-types/:ticketTypeId/waitlist`
 
 Joins (or re-joins) the waitlist. `409` while the type still has
-capacity or when the caller is already waiting.
+capacity or when the caller is already waiting. `404` when the ticket
+type is hidden or its event is a draft or deleted, and `400` when the
+event has been cancelled. Re-joining after leaving puts the caller at
+the back of the queue.
 
 ```bash
 curl -s -X POST "$API/v1/ticket-types/4b8d2f6a-0c1e-4a3b-9d5f-6e7a8b9c0d1e/waitlist" -H "Authorization: Bearer $TOKEN"
@@ -968,12 +971,14 @@ curl -s "$API/v1/ticket-types/4b8d2f6a-0c1e-4a3b-9d5f-6e7a8b9c0d1e/waitlist" -H 
 ### `POST /v1/ticket-types/:ticketTypeId/waitlist/offer-next`
 
 Members only. Moves the next `count` waiting entries to `OFFERED` with
-an expiry window.
+an expiry window. An offer that is not taken up before `offerExpiresAt`
+is moved to `EXPIRED` by a scheduled job, which offers the slot to the
+next waiting entry with the same window (see docs/SCHEDULER.md).
 
 | field | type | rules |
 |---|---|---|
-| `count` | integer | required, 1 to 500 |
-| `windowMs` | integer | optional, at least 60000; default 24 hours |
+| `count` | integer | required, 1 to 100 |
+| `windowMs` | integer | optional, 60000 (one minute) to 604800000 (seven days); default 24 hours |
 
 ```bash
 curl -s -X POST "$API/v1/ticket-types/4b8d2f6a-0c1e-4a3b-9d5f-6e7a8b9c0d1e/waitlist/offer-next" \

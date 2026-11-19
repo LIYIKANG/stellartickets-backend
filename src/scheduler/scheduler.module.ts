@@ -6,6 +6,7 @@ import { ChainEventIndexerJob } from '../indexer/chain-event-indexer.job';
 import { IndexerModule } from '../indexer/indexer.module';
 import { StellarModule } from '../stellar/stellar.module';
 import { TicketStatusReconciliationJob } from './ticket-status-reconciliation.job';
+import { WaitlistOfferExpiryJob } from './waitlist-offer-expiry.job';
 
 /** Cron jobs run unless `SCHEDULER_ENABLED=false`. */
 export function isSchedulerEnabled(
@@ -36,6 +37,7 @@ export class SchedulerModule {
         HeartbeatJob,
         ChainEventIndexerJob,
         TicketStatusReconciliationJob,
+        WaitlistOfferExpiryJob,
       ],
     };
   }

@@ -5,6 +5,10 @@ import { ConfigModule } from '@nestjs/config';
 import { HEARTBEAT_JOB_NAME, HeartbeatJob } from './heartbeat.job';
 import { SchedulerModule, isSchedulerEnabled } from './scheduler.module';
 import { TicketStatusReconciliationJob } from './ticket-status-reconciliation.job';
+import {
+  WAITLIST_OFFER_EXPIRY_JOB_NAME,
+  WaitlistOfferExpiryJob,
+} from './waitlist-offer-expiry.job';
 import { FeatureFlagsModule } from '../config/feature-flags.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,6 +41,7 @@ describe('SchedulerModule.forRoot', () => {
     expect(dynamicModule.imports).toHaveLength(3);
     expect(dynamicModule.providers).toContain(HeartbeatJob);
     expect(dynamicModule.providers).toContain(TicketStatusReconciliationJob);
+    expect(dynamicModule.providers).toContain(WaitlistOfferExpiryJob);
   });
 
   it('registers nothing when SCHEDULER_ENABLED=false', () => {
@@ -72,6 +77,9 @@ describe('SchedulerModule.forRoot', () => {
     try {
       const registry = app.get(SchedulerRegistry);
       expect(registry.getCronJobs().has(HEARTBEAT_JOB_NAME)).toBe(true);
+      expect(registry.getCronJobs().has(WAITLIST_OFFER_EXPIRY_JOB_NAME)).toBe(
+        true,
+      );
     } finally {
       await app.close();
     }

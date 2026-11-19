@@ -61,3 +61,18 @@ are logged and do not prevent other tickets from being checked.
 Set `TICKET_RECONCILIATION_INTERVAL_MINUTES` to an integer from 1 to 1440;
 the default is 60 minutes. Like the cron jobs, this job is not registered when
 `SCHEDULER_ENABLED=false`.
+
+## Waitlist offer expiry
+
+`WaitlistOfferExpiryJob` runs every five minutes. It moves each waitlist entry
+that is still `OFFERED` after its `offerExpiresAt` to `EXPIRED`, then offers the
+freed slot to the next `WAITING` entry for the same ticket type, oldest first.
+The new offer gets the same window length as the one that lapsed, or 24 hours
+when that cannot be worked out.
+
+Each offer is expired and handed on in its own transaction, and both writes
+only apply while the row is still in the state the job read. An offer that
+converted in the meantime is left alone, and two instances running the job at
+once cannot hand the same slot to two people, so the job is safe to run on
+every instance. If nobody is waiting, the offer is still expired and the slot
+stays free.

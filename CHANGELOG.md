@@ -24,7 +24,17 @@ This project follows [Keep a Changelog](https://keepachangelog.com/).
 - Cache abstraction with memory and Redis drivers (`CACHE_DRIVER`)
 - Optional BullMQ queue for outbound webhooks (`WEBHOOK_QUEUE_ENABLED`, off by default)
 - Scheduler module with a sample cron job (`SCHEDULER_ENABLED`)
+- `WaitlistOfferExpiryJob`: every five minutes, waitlist offers past their
+  `offerExpiresAt` become `EXPIRED` and the slot is offered to the next
+  waiting entry; see docs/SCHEDULER.md
 
 ### Changed
+- `POST /ticket-types/:ticketTypeId/waitlist/offer-next` accepts a `count` of
+  at most 100 (was 500) and a `windowMs` of at most seven days; larger values
+  return `400`
+- `POST /ticket-types/:ticketTypeId/waitlist` returns `404` for a hidden ticket
+  type or a draft or deleted event, and `400` for a cancelled event
+- Re-joining a waitlist after leaving it now queues the user at the back
+  instead of restoring their original position
 - `GET /events` is paginated and returns `{ items, total, page, limit }`
   instead of a bare array

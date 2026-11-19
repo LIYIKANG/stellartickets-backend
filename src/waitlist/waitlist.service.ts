@@ -1,11 +1,18 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { WaitlistEntryStatus } from '@prisma/client';
+import { EventStatus, WaitlistEntryStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import {
+  DEFAULT_WAITLIST_OFFER_WINDOW_MS,
+  MAX_WAITLIST_OFFER_COUNT,
+  MAX_WAITLIST_OFFER_WINDOW_MS,
+  MIN_WAITLIST_OFFER_WINDOW_MS,
+} from './waitlist.constants';
 
 @Injectable()
 export class WaitlistService {
@@ -22,8 +29,20 @@ export class WaitlistService {
   async join(userId: string, ticketTypeId: string) {
     const ticketType = await this.prisma.ticketType.findUnique({
       where: { id: ticketTypeId },
+      include: { event: true },
     });
-    if (!ticketType) {
+    // A hidden type, or any type on a soft-deleted or unpublished event, is
+    // not visible to attendees. It is reported exactly like a missing type so
+    // the response does not confirm that it exists.
+    if (!ticketType || ticketType.isHidden || ticketType.event.deletedAt) {
+      throw new NotFoundException('Ticket type not found');
+    }
+    if (ticketType.event.status === EventStatus.CANCELLED) {
+      throw new BadRequestException(
+        'This event has been cancelled; its waitlist is closed',
+      );
+    }
+    if (ticketType.event.status !== EventStatus.PUBLISHED) {
       throw new NotFoundException('Ticket type not found');
     }
     if (ticketType.quantityIssued < ticketType.quantityTotal) {
@@ -46,6 +65,10 @@ export class WaitlistService {
             status: WaitlistEntryStatus.WAITING,
             offeredAt: null,
             offerExpiresAt: null,
+            // Position is the rank by `createdAt` among WAITING entries, so a
+            // returning user is re-stamped and queues behind everyone who is
+            // already waiting instead of reclaiming their old spot.
+            createdAt: new Date(),
           },
         })
       : await this.prisma.waitlistEntry.create({
@@ -108,8 +131,29 @@ export class WaitlistService {
     userId: string,
     ticketTypeId: string,
     count: number,
-    windowMs = 24 * 60 * 60 * 1000,
+    windowMs = DEFAULT_WAITLIST_OFFER_WINDOW_MS,
   ) {
+    // `OfferNextDto` enforces these limits for HTTP callers. They are repeated
+    // here so an internal caller cannot offer an unbounded batch either.
+    if (
+      !Number.isInteger(count) ||
+      count < 1 ||
+      count > MAX_WAITLIST_OFFER_COUNT
+    ) {
+      throw new BadRequestException(
+        `count must be an integer from 1 to ${MAX_WAITLIST_OFFER_COUNT}`,
+      );
+    }
+    if (
+      !Number.isInteger(windowMs) ||
+      windowMs < MIN_WAITLIST_OFFER_WINDOW_MS ||
+      windowMs > MAX_WAITLIST_OFFER_WINDOW_MS
+    ) {
+      throw new BadRequestException(
+        `windowMs must be an integer from ${MIN_WAITLIST_OFFER_WINDOW_MS} to ${MAX_WAITLIST_OFFER_WINDOW_MS}`,
+      );
+    }
+
     const ticketType = await this.prisma.ticketType.findUnique({
       where: { id: ticketTypeId },
       include: { event: true },
